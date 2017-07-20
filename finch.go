@@ -3,8 +3,10 @@ package finch
 
 import (
 	"encoding/json"
+
 	"github.com/getsentry/raven-go"
 	"gopkg.in/telegram-bot-api.v4"
+
 	"io/ioutil"
 	"log"
 	"net/http"
@@ -14,6 +16,8 @@ import (
 
 // Config is a type used for storing configuration information.
 type Config map[string]interface{}
+
+var bot *Finch
 
 var sentryEnabled bool = false
 
@@ -68,14 +72,14 @@ type Finch struct {
 }
 
 // NewFinch returns a new Finch instance, with Telegram API setup.
-func NewFinch(token string) *Finch {
-	return NewFinchWithClient(token, &http.Client{})
+func NewFinch(token string, debug bool) *Finch {
+	return NewFinchWithClient(token, &http.Client{}, debug)
 }
 
 // NewFinchWithClient returns a new Finch instance,
 // using a different net/http Client.
-func NewFinchWithClient(token string, client *http.Client) *Finch {
-	bot := &Finch{}
+func NewFinchWithClient(token string, client *http.Client, debug bool) *Finch {
+	bot = &Finch{}
 
 	api, err := tgbotapi.NewBotAPIWithClient(token, client)
 	if err != nil {
@@ -85,6 +89,7 @@ func NewFinchWithClient(token string, client *http.Client) *Finch {
 	bot.API = api
 	bot.Commands = commands
 	bot.Inline = inline
+	bot.API.Debug = debug
 
 	c, _ := LoadConfig()
 	bot.Config = *c
@@ -120,10 +125,25 @@ func (f *Finch) Start() {
 
 // StartWebhook initializes commands,
 // then registers a webhook for the bot to listen on
-func (f *Finch) StartWebhook(endpoint string) {
-	f.commandInit()
+func (f *Finch) StartWebhook(domainName string, endpoint string, listenPort string) {
+	log.Printf("Authorized on account @%s", bot.API.Self.UserName)
+	log.Printf("Webhook Url: " + domainName + endpoint)
+	_, err := bot.API.SetWebhook(tgbotapi.NewWebhook(domainName + endpoint))
+	if err != nil {
+		log.Fatal(err)
+	}
 
-	f.API.ListenForWebhook(endpoint)
+	f.commandInit()
+	updates := f.API.ListenForWebhook(endpoint)
+	go http.ListenAndServe(":"+listenPort, nil)
+
+	for update := range updates {
+		if bot.API.Debug {
+			log.Printf("%+v\n", update)
+		}
+		go f.commandRouter(update)
+	}
+
 }
 
 // SendMessage sends a message with various changes, and does not return the Message.
