@@ -126,7 +126,7 @@ func (f *Finch) Start() {
 // StartWebhook initializes commands,
 // then registers a webhook for the bot to listen on
 func (f *Finch) StartWebhook(domainName string, endpoint string, listenPort string) {
-	log.Printf("Authorized on account @%s", bot.API.Self.UserName)
+	log.Printf("Authorized on account: @%s", bot.API.Self.UserName)
 	log.Printf("Webhook Url: " + domainName + endpoint)
 	_, err := bot.API.SetWebhook(tgbotapi.NewWebhook(domainName + endpoint))
 	if err != nil {
