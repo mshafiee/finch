@@ -99,6 +99,7 @@ func NewFinchWithClient(token string, client *http.Client, debug bool) *Finch {
 
 // Start initializes commands, and starts listening for messages.
 func (f *Finch) Start() {
+	f.API.SetWebhook(tgbotapi.NewWebhook(""))
 	if v, ok := f.Config["sentry_dsn"]; ok {
 		sentryEnabled = true
 		raven.SetDSN(v.(string))
