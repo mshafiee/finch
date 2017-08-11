@@ -2,9 +2,11 @@ package finch
 
 import (
 	"bytes"
-	"gopkg.in/telegram-bot-api.v4"
+	"github.com/go-telegram-bot-api/telegram-bot-api"
 	"sync"
 )
+
+const INLINE_KEYBOARD_BUTTON_DATA_SEPRATOR = "|&h6@QC-k#9(5#!|"
 
 // Help contains information about a command,
 // used for showing info in the help command.
@@ -66,9 +68,10 @@ type Command interface {
 	Help() Help
 	Init(*CommandState, *Finch) error
 	ShouldExecute(tgbotapi.Message) bool
+	CallbackQueryName() string
 	Execute(tgbotapi.Message) error
-	ExecuteWaiting(tgbotapi.Message) error
-	ExecuteCallback(tgbotapi.CallbackQuery) error
+	ExecuteWaiting(tgbotapi.Message, int, interface{}) error
+	ExecuteCallback(tgbotapi.CallbackQuery, string) error
 	IsHighPriority(tgbotapi.Message) bool
 }
 
@@ -107,6 +110,10 @@ func (CommandBase) ExecuteWaiting(tgbotapi.Message) error { return nil }
 // when you are expecting to get a callback query.
 func (CommandBase) ExecuteCallback(tgbotapi.CallbackQuery) error { return nil }
 
+// CallbackQueryName returns nil to show no error, you may overwrite this
+// to set callback query name.
+func (CommandBase) CallbackQueryName() string { return "" }
+
 // IsHighPriority return false, you should overwrite this function to
 // return true if your command needs to execute before checking for
 // commands that are waiting for a reply or keyboard input.
@@ -124,8 +131,10 @@ func (cmd CommandBase) Set(key string, value interface{}) {
 }
 
 type userWaitMap struct {
-	mutex    *sync.Mutex
-	userWait map[int]bool
+	mutex             *sync.Mutex
+	userWait          map[int]bool
+	userWaitStatus    map[int]int
+	userWaitValue map[int]interface{}
 }
 
 // CommandState is the current state of a command.
@@ -140,8 +149,10 @@ func NewCommandState(cmd Command) *CommandState {
 	return &CommandState{
 		Command: cmd,
 		waitingForReplyUser: userWaitMap{
-			mutex:    &sync.Mutex{},
-			userWait: map[int]bool{},
+			mutex:             &sync.Mutex{},
+			userWait:          map[int]bool{},
+			userWaitStatus:    map[int]int{},
+			userWaitValue: map[int]interface{}{},
 		},
 	}
 }
@@ -159,10 +170,22 @@ func (state *CommandState) IsWaiting(user int) bool {
 }
 
 // SetWaiting sets that the bot should expect user input from this user.
-func (state *CommandState) SetWaiting(user int) {
+func (state *CommandState) SetWaiting(user int, status int, value interface{}) {
 	state.waitingForReplyUser.mutex.Lock()
 	defer state.waitingForReplyUser.mutex.Unlock()
 	state.waitingForReplyUser.userWait[user] = true
+	state.waitingForReplyUser.userWaitStatus[user] = status
+	if value != nil {
+		state.waitingForReplyUser.userWaitValue[user] = value
+	}
+
+}
+
+// SetWaiting sets that the bot should expect user input from this user.
+func (state *CommandState) GetWaitingStatus(user int) (bool, int, interface{}) {
+	return state.waitingForReplyUser.userWait[user],
+		state.waitingForReplyUser.userWaitStatus[user],
+		state.waitingForReplyUser.userWaitValue[user]
 }
 
 // ReleaseWaiting sets that the bot should not expect any input from
@@ -171,7 +194,8 @@ func (state *CommandState) ReleaseWaiting(user int) {
 	state.waitingForReplyUser.mutex.Lock()
 	defer state.waitingForReplyUser.mutex.Unlock()
 	state.waitingForReplyUser.userWait[user] = false
-
+	state.waitingForReplyUser.userWaitStatus[user] = 0
+	state.waitingForReplyUser.userWaitValue[user] = nil
 }
 
 // InlineCommand is a single command executed for an Inline Query.
