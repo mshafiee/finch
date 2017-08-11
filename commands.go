@@ -2,7 +2,7 @@ package finch
 
 import (
 	"github.com/getsentry/raven-go"
-	"gopkg.in/telegram-bot-api.v4"
+	"github.com/go-telegram-bot-api/telegram-bot-api"
 	"log"
 	"regexp"
 	"strings"
@@ -85,13 +85,20 @@ func (f *Finch) commandRouter(update tgbotapi.Update) {
 
 	// check if we have a callback query
 	if update.CallbackQuery != nil {
+		data := strings.Split(update.CallbackQuery.Data, INLINE_KEYBOARD_BUTTON_DATA_SEPRATOR)
+
 		for _, command := range f.Commands {
 			// check if the command is waiting for input
-			if command.IsWaiting(update.CallbackQuery.From.ID) {
-				if err := command.Command.ExecuteCallback(*update.CallbackQuery); err != nil {
+			if data[0] == command.Command.CallbackQueryName() {
+				if err := command.Command.ExecuteCallback(*update.CallbackQuery, data[1]); err != nil {
 					f.commandError(command.Command.Help().Name, *update.CallbackQuery.Message, err)
 				}
 			}
+			//if command.IsWaiting(update.CallbackQuery.From.ID) {
+			//	if err := command.Command.ExecuteCallback(*update.CallbackQuery); err != nil {
+			//		f.commandError(command.Command.Help().Name, *update.CallbackQuery.Message, err)
+			//	}
+			//}
 		}
 	}
 
@@ -122,9 +129,9 @@ func (f *Finch) commandRouter(update tgbotapi.Update) {
 	// now we can run all others
 	for _, command := range f.Commands {
 		// check if we're waiting for some text
-		if command.IsWaiting(update.Message.From.ID) {
+		if isWaiting, status, value := command.GetWaitingStatus(update.Message.From.ID); isWaiting {
 			// execute the waiting command
-			if err := command.Command.ExecuteWaiting(*update.Message); err != nil {
+			if err := command.Command.ExecuteWaiting(*update.Message, status, value); err != nil {
 				// some kind of error happened, send a message to sender
 				f.commandError(command.Command.Help().Name, *update.Message, err)
 			}
