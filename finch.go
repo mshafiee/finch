@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 
 	"github.com/getsentry/raven-go"
-	"gopkg.in/telegram-bot-api.v4"
+	"github.com/go-telegram-bot-api/telegram-bot-api"
 
 	"io/ioutil"
 	"log"
@@ -127,7 +127,7 @@ func (f *Finch) Start() {
 // StartWebhook initializes commands,
 // then registers a webhook for the bot to listen on
 func (f *Finch) StartWebhook(domainName string, endpoint string, listenPort string) {
-	log.Printf("Authorized on account: @%s", bot.API.Self.UserName)
+	log.Printf("Authorized on account @%s", bot.API.Self.UserName)
 	log.Printf("Webhook Url: " + domainName + endpoint)
 	_, err := bot.API.SetWebhook(tgbotapi.NewWebhook(domainName + endpoint))
 	if err != nil {
@@ -166,4 +166,15 @@ func (f *Finch) QuickReply(message tgbotapi.Message, text string) error {
 	msg.ReplyToMessageID = message.MessageID
 
 	return f.SendMessage(msg)
+}
+
+// SendPhoto sends a photo message with various changes.
+//
+// At some point, this may do more handling as needed.
+func (f *Finch) Send(c tgbotapi.Chattable) (tgbotapi.Message, error) {
+	msg, err := f.API.Send(c)
+	if err != nil && sentryEnabled {
+		raven.CaptureError(err, nil)
+	}
+	return msg, err
 }
