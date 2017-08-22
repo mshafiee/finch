@@ -193,9 +193,9 @@ func (state *CommandState) GetWaitingStatus(user int) (bool, int, interface{}) {
 func (state *CommandState) ReleaseWaiting(user int) {
 	state.waitingForReplyUser.mutex.Lock()
 	defer state.waitingForReplyUser.mutex.Unlock()
-	state.waitingForReplyUser.userWait[user] = false
-	state.waitingForReplyUser.userWaitStatus[user] = 0
-	state.waitingForReplyUser.userWaitValue[user] = nil
+	delete(state.waitingForReplyUser.userWait, user)
+	delete(state.waitingForReplyUser.userWaitStatus, user)
+	delete(state.waitingForReplyUser.userWaitValue, user)
 }
 
 // InlineCommand is a single command executed for an Inline Query.
